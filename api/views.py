@@ -1,32 +1,80 @@
-from rest_framework import viewsets, status
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
 from .models import Vulnerability
 from .serializers import VulnerabilitySerializer
+import requests
+from django.db.models import Count
 
-class VulnerabilityViewSet(viewsets.ViewSet):
+@api_view(['GET'])
+def fetch_and_store_vulnerabilities(request):
+    response = requests.get('https://services.nvd.nist.gov/rest/json/cves/2.0')
+    data = response.json()
+    vulnerabilities = data.get('vulnerabilities', [])
     
-    def list(self, request):
-        queryset = Vulnerability.objects.all()
-        serializer = VulnerabilitySerializer(queryset, many=True)
-        return Response(serializer.data)
+    for vuln in vulnerabilities:
+        cve_data = vuln.get('cve', {})
+        cve_id = cve_data.get('id', '')
+        description = next((desc['value'] for desc in cve_data.get('descriptions', []) if desc['lang'] == 'en'), '')
+        published_date = cve_data.get('published', '').split('T')[0]
+        last_modified = cve_data.get('lastModified', '').split('T')[0]
+        severity = cve_data.get('metrics', {}).get('cvssMetricV2', [{}])[0].get('baseSeverity', '')
+
+        Vulnerability.objects.update_or_create(
+            cve_id=cve_id,
+            defaults={
+                'description': description,
+                'published_date': published_date,
+                'last_modified': last_modified,
+                'base_severity': severity
+            }
+        )
     
-    def create(self, request):
-        cve_ids = request.data.get('cve_ids', [])
-        Vulnerability.objects.filter(cve_id__in=cve_ids).update(fixed=True)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    return Response({'message': 'Vulnerabilities fetched and stored successfully'})
+
+@api_view(['GET'])
+def get_all_vulnerabilities(request):
+    vulnerabilities = Vulnerability.objects.all()
+    serializer = VulnerabilitySerializer(vulnerabilities, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+def mark_vulnerabilities_fixed(request):
+    if not request.data or 'cve_ids' not in request.data:
+        return Response(
+            {'error': 'Body is empty or missing cve_ids'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     
-    def retrieve(self, request, pk=None):
-        queryset = Vulnerability.objects.all()
-        if pk:
-            queryset = queryset.filter(cve_id=pk)
-        serializer = VulnerabilitySerializer(queryset, many=True)
-        return Response(serializer.data)
+    cve_ids = request.data.get('cve_ids', [])
     
-    def get_fixed_vulnerabilities(self):
-        queryset = Vulnerability.objects.filter(fixed=True)
-        serializer = VulnerabilitySerializer(queryset, many=True)
-        return Response(serializer.data)
+    if not cve_ids:
+        return Response(
+            {'error': 'No CVE ID provided'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     
-    def get_vulnerabilities_by_severity(self):
-        vulnerabilities = Vulnerability.objects.values('severity').annotate(count=models.Count('id'))
-        return Response(vulnerabilities)
+    existing_vulnerabilities = Vulnerability.objects.filter(cve_id__in=cve_ids)
+    if not existing_vulnerabilities.exists():
+        return Response(
+            {'error': 'No vulnerabilities found for the provided CVE ID'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    updated_count = Vulnerability.objects.filter(cve_id__in=cve_ids).update(fixed=True)
+    
+    return Response(
+        {'message': ' Vulnerability fixed successfully'},
+        status=status.HTTP_200_OK
+    )
+    
+@api_view(['GET'])
+def get_unfixed_vulnerabilities(request):
+    vulnerabilities = Vulnerability.objects.filter(fixed=False)
+    serializer = VulnerabilitySerializer(vulnerabilities, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_vulnerabilities_summary_by_severity(request):
+    summary = Vulnerability.objects.values('base_severity').annotate(count=Count('id'))
+    return Response(summary)

@@ -1,11 +1,10 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import VulnerabilityViewSet
-
-router = DefaultRouter()
-router.register(r'vulnerabilities', VulnerabilityViewSet, basename='vulnerability')
+from django.urls import path
+from . import views
 
 urlpatterns = [
-    path('', include(router.urls)),
-    path('api/', include('vulnerabilities.urls')),
+    path('api/', views.fetch_and_store_vulnerabilities),
+    path('api/get/', views.get_all_vulnerabilities),
+    path('api/fixed/', views.mark_vulnerabilities_fixed),
+    path('api/filtered/', views.get_unfixed_vulnerabilities),
+    path('api/summary/', views.get_vulnerabilities_summary_by_severity),
 ]
