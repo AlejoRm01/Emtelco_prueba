@@ -1,6 +1,7 @@
 from django.urls import path
 from django.urls import re_path
 from rest_framework import permissions
+from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
@@ -10,3 +11,6 @@ urlpatterns = [
     path('api/filtered/', views.get_unfixed_vulnerabilities, name='get_unfixed_vulnerabilities'),
     path('api/summary/', views.get_vulnerabilities_summary_by_severity, name='get_vulnerabilities_summary_by_severity'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
