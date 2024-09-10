@@ -119,6 +119,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "htmlcov"),
+    os.path.join(BASE_DIR, "logs"),
 ]
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -132,7 +133,7 @@ LOGGING = {
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'app.log'),
+            'filename': os.path.join(BASE_DIR, 'logs/app.log'),
         },
         'console': {
             'level': 'DEBUG',

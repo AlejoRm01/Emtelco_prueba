@@ -3,6 +3,7 @@ FROM python:3.12-alpine
 WORKDIR /app
 
 COPY ./requirements.txt ./
+COPY ./logs /logs 
 RUN pip install -r requirements.txt
 
 RUN pip install requests
